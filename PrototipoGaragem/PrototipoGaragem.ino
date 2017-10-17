@@ -42,6 +42,7 @@ void loop() {
 
 }
 
+// A função checa qual o estado atual da luz da garagem e o alterna (se estiver desligado, liga. se estiver ligado, desliga)
 void comutaLuz(){
   if(lightStatus){
     digitalWrite(LIGHT, OFF);
@@ -53,11 +54,13 @@ void comutaLuz(){
   }
 }
 
+// A função acende a luz da garagem
 void acendeLuz(){
   digitalWrite(LIGHT, ON);
   lightStatus = ON;
 }
 
+// A função apaga a luz da garagem
 void apagaLuz(){
   digitalWrite(LIGHT, OFF);
   lightStatus = OFF;
