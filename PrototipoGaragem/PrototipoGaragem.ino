@@ -1,6 +1,6 @@
 #include <SPI.h>
-#include <UIPEthernet.h>
-#include <utility/logging.h>
+//#include <UIPEthernet.h>
+//#include <utility/logging.h>
 #include <Servo.h> 
 
 #define SERVO 3 // O servo está na porta digital 3
@@ -19,10 +19,10 @@
 // Valores possíveis da máquina de estados de controle da garagem
 #define INITIAL 0x00
 #define GATECLOSED 0x01
-#define gateOPENING 0x02
+#define GATEOPENING 0x02
 #define GATEOPENED 0x04
 #define GATECLOSING 0x08
-#define gateRECEMABERTO 0x10
+#define GATERECEMABERTO 0x10
 #define GATEJUSTCLOSED 0x20
 
 // Valors possíveis da máquina de estados de controle do portão
@@ -79,16 +79,16 @@ void loop() {
     case GATECLOSED:
       if(botaoGaragem){ // Se houver comando de acionamento do portão, muda o estado das máquinas de estado para abertura do portão
         gateMachineState = OPENING;
-        garageMachineState = gateOPENING;
+        garageMachineState = GATEOPENING;
       }
       break;
-    case gateOPENING:
+    case GATEOPENING:
       if (isGarageOPEN()){ // Se o portão estiver aberto, muda o estado da máquina de estado para portão recém aberto
-        garageMachineState = gateRECEMABERTO;
+        garageMachineState = GATERECEMABERTO;
         initialhour = millis();
       }
       break;
-    case gateRECEMABERTO:
+    case GATERECEMABERTO:
       if(millis() - initialhour > TEMPOLUZ){ // Se tiver decorrido TEMPOLUZ milissegundos da abertura do portão, acende a luz
         garageMachineState = GATEOPENED;
         switchOnLight();
@@ -120,7 +120,7 @@ void loop() {
       else{
         if(botaoGaragem){
           gateMachineState = OPENING;
-          garageMachineState = gateOPENING;
+          garageMachineState = GATEOPENING;
         }
       }
       break;
@@ -178,21 +178,21 @@ void switchOffLight(){
 
 void setupGate(int pin){
   gate.attach(pin);
-  gate.write(0);
+  gate.write(90);
   position = 0;
 }
 void openGate(){
-  position = (90*(millis()-initialhourgate))/GATETIME;
-  if(position>90){
-    position = 90;
+  position = 90-(90*(millis()-initialhourgate))/GATETIME;
+  if(position<0){
+    position = 0;
     gateStatus = OPENED;
   }
   gate.write(position);
 }
 void closeGate(){
-  position = 90-(90*(millis()-initialhourgate))/GATETIME;
-  if(position<0){
-    position = 0;
+  position = (90*(millis()-initialhourgate))/GATETIME;
+  if(position>90){
+    position = 90;
     gateStatus = CLOSED;
   }
   gate.write(position);
