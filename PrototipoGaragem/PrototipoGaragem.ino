@@ -1,5 +1,3 @@
-#define MQTT_SOCKET_TIMEOUT 5
-
 #include <SPI.h>
 #include <UIPEthernet.h>
 #include <utility/logging.h>
@@ -39,6 +37,7 @@
 // Tempo de abertura/fechamento do portão
 #define GATETIME 10000
 
+#define NUM_PISCADAS 10
 
 #define CONNECTED 0x00
 #define DISCONNECTED 0x01
@@ -67,10 +66,13 @@ unsigned long initialhourgate = 0;
 int mqttMachineState;
 
 int blinkLed = LOW;
-int contador = 30;
-unsigned long tempo = 30;
+int contador = NUM_PISCADAS;
+unsigned long tempo = NUM_PISCADAS;
 unsigned long tempoinicial = 0;
 int blinkLedStatus = LOW;
+
+String sendPortaoStatus = "";
+int sendLuzStatus = 0;
 
 // Callback function header
 void callback(char *topic, byte *payload, unsigned int length);
@@ -83,31 +85,27 @@ PubSubClient client("m10.cloudmqtt.com", 16367, callback, ethClient);
 // Funcçao que irá receber o retorno do servidor.
 void callback(char *topic, byte *payload, unsigned int length)
 {
-  //Serial.println(*payload);
-  Serial.println(topic); 
-  String teste = String(topic); 
-  if(teste == "portao"){
-     Serial.println("comando mqtt portao");
-    if(payload[0] == 49){
+  String sTopic = String(topic); 
+  if(sTopic == "portao"){
+    if((char)payload[0] == '1'){
       mqttPortao = 1;
-       mqttLuz = 1;
+    }
+    else if((char)payload[0] == '0'){
+      mqttPortao = 1;
     }
     else
       mqttPortao = 0;
   }
 
-  if(teste == "lampada"){
-    //if(payload[0] == 49){
-      Serial.println("comando mqtt lampada");
-      mqttLuz = 1;
-   // }
-   // else
-    //  mqttLuz = 0;
-  }
-
-  byte *p = (byte *)malloc(length);
-  memcpy(p, payload, length);
-  free(p);
+  if(sTopic == "lampada"){
+    mqttLuz = 1;
+   }
+  blinkLed = HIGH;
+  tempoinicial = millis();
+  contador += NUM_PISCADAS;
+  //byte *p = (byte *)malloc(length);
+  //memcpy(p, payload, length);
+  //free(p);
 }
 
 void setup() {
@@ -123,6 +121,8 @@ void setup() {
   Serial.begin(9600);
   //Serial.println("Iniciando...");
   Ethernet.begin(mac);
+
+  digitalWrite(STATUSLEDBLUE, ON);
   if (client.connect("Magal", "coiktbwj", "zAhaklL2atGf"))
   {
     // Envia uma mensagem para o cloud no topic portao
@@ -131,13 +131,15 @@ void setup() {
     // Conecta no topic para receber mensagens
     client.subscribe("portao");
     client.subscribe("lampada");
+    client.subscribe("portaostatus");
+    client.subscribe("lampadastatus");
     
-  
+    client.publish("lampada","0");
     mqttMachineState = CONNECTED;
   }else{
     mqttMachineState = DISCONNECTED;
   }
-
+  digitalWrite(STATUSLEDBLUE, OFF);
 }
 
 void loop() {
@@ -158,6 +160,7 @@ void loop() {
       if(botaoGaragem){ // Se houver comando de acionamento do portão, muda o estado das máquinas de estado para abertura do portão
         gateMachineState = OPENING;
         garageMachineState = GATEOPENING;
+        sendPortaoStatus = "Abrindo";
       }
       break;
     case GATEOPENING:
@@ -175,6 +178,7 @@ void loop() {
         if(botaoGaragem){
           gateMachineState = CLOSING;
           garageMachineState = GATECLOSING;
+          sendPortaoStatus = "Fechando";
         }
       }
       break;
@@ -182,6 +186,7 @@ void loop() {
       if(botaoGaragem){
         gateMachineState = CLOSING;
         garageMachineState = GATECLOSING;
+        sendPortaoStatus = "Fechando";
       }
       break;
     case GATECLOSING:
@@ -199,6 +204,7 @@ void loop() {
         if(botaoGaragem){
           gateMachineState = OPENING;
           garageMachineState = GATEOPENING;
+          sendPortaoStatus = "Abrindo";
         }
       }
       break;
@@ -244,7 +250,9 @@ void loop() {
         // Conecta no topic para receber mensagens
         client.subscribe("portao");
         client.subscribe("lampada");
-    
+        client.subscribe("portaostatus");
+        client.subscribe("lampadastatus");
+        
         mqttMachineState = CONNECTED;
       }
       else{
@@ -254,9 +262,9 @@ void loop() {
   }
 
   if(blinkLed){
-    if(!contador){
+    if(contador<=0){
       blinkLed = LOW;
-      contador = 100;
+      contador = NUM_PISCADAS;
       apagaLed(STATUSLEDBLUE);
     }
     else{
@@ -274,6 +282,33 @@ void loop() {
       }
     }
   }
+  else
+    apagaLed(STATUSLEDBLUE);
+
+  if(sendLuzStatus){
+    boolean flag;
+    if(lightStatus)
+      flag = client.publish("lampadastatus", "100", true);
+    else
+      flag = client.publish("lampadastatus", "0", true);
+    if(flag){
+      blinkLed = HIGH;
+      tempoinicial = millis();
+      contador += NUM_PISCADAS;
+      sendLuzStatus = 0;
+      
+    }
+  }
+  if(sendPortaoStatus != ""){
+    char buf[10];
+    sendPortaoStatus.toCharArray(buf,sendPortaoStatus.length());
+    if(client.publish("portaostatus", buf, true)){
+      sendPortaoStatus = "";
+      blinkLed = HIGH;
+      tempoinicial = millis();
+      contador += NUM_PISCADAS;
+    }
+  }
 }
 
 // A função checa qual o estado atual da luz da garagem e o alterna (se estiver desligado, liga. se estiver ligado, desliga)
@@ -286,40 +321,45 @@ void comutaLuz(){
     digitalWrite(LIGHT, ON);
     lightStatus = ON;
   }
-  blinkLed = HIGH;
-  tempoinicial = millis();
+  sendLuzStatus = 1;
+  Serial.println("comutaLuz");
 }
 
 // A função acende a luz da garagem
 void switchOnLight(){
   digitalWrite(LIGHT, ON);
   lightStatus = ON;
+  sendLuzStatus = 1;
 }
 
 // A função apaga a luz da garagem
 void switchOffLight(){
   digitalWrite(LIGHT, OFF);
   lightStatus = OFF;
+  sendLuzStatus = 1;
 }
 
 void setupGate(int pin){
   gate.attach(pin);
   gate.write(90);
-  position = 0;
+  position = 90;
+  sendPortaoStatus = "Fechado";
 }
 void openGate(){
-  position = 90-(90*(millis()-initialhourgate))/GATETIME;
-  if(position<0){
-    position = 0;
+  position = 90-(70*(millis()-initialhourgate))/GATETIME;
+  if(position<=20){
+    position = 20;
     gateStatus = OPENED;
+    sendPortaoStatus = "Aberto";
   }
   gate.write(position);
 }
 void closeGate(){
-  position = (90*(millis()-initialhourgate))/GATETIME;
-  if(position>90){
+  position = 20+(70*(millis()-initialhourgate))/GATETIME;
+  if(position>=90){
     position = 90;
     gateStatus = CLOSED;
+    sendPortaoStatus = "Fechado";
   }
   gate.write(position);
 }
@@ -343,14 +383,14 @@ int comandoPortao(){
 
 int comandoLuz(){
   int botao = digitalRead(LIGHTBUTTON);
-  if(mqttLuz){
-    Serial.print("botao ");
-  
+  if(botao || mqttLuz){
+  Serial.print("botao ");
   Serial.println(botao);
-  Serial.print("mqtt ");
+  Serial.print("mqttLuz ");
   Serial.println(mqttLuz);
   }
   botao |= mqttLuz;
   mqttLuz = 0;
+  
   return botao; 
 }
