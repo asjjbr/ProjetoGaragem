@@ -300,7 +300,7 @@ void loop() {
     }
   }
   if(sendPortaoStatus != ""){
-    char buf[10];
+    char buf[sendPortaoStatus.length()];
     sendPortaoStatus.toCharArray(buf,sendPortaoStatus.length());
     if(client.publish("portaostatus", buf, true)){
       sendPortaoStatus = "";
@@ -383,12 +383,6 @@ int comandoPortao(){
 
 int comandoLuz(){
   int botao = digitalRead(LIGHTBUTTON);
-  if(botao || mqttLuz){
-  Serial.print("botao ");
-  Serial.println(botao);
-  Serial.print("mqttLuz ");
-  Serial.println(mqttLuz);
-  }
   botao |= mqttLuz;
   mqttLuz = 0;
   
