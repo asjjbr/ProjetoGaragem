@@ -1,5 +1,5 @@
 
-#define MQTT_SOCKET_TIMEOUT 5
+//#define MQTT_SOCKET_TIMEOUT 0
 
 #include <SPI.h>
 #include <UIPEthernet.h>
@@ -123,7 +123,8 @@ void setup() {
   
   Serial.begin(9600);
   //Serial.println("Iniciando...");
-  Ethernet.begin(mac, 5000, 4000);
+  //Ethernet.begin(mac, 5000, 4000);
+  Ethernet.begin(mac);
 
   digitalWrite(STATUSLEDBLUE, ON);
   if (client.connect("Magal", "coiktbwj", "zAhaklL2atGf"))
@@ -249,16 +250,20 @@ void loop() {
     case DISCONNECTED:
       apagaLed(STATUSLEDGREEN);
       acendeLed(STATUSLEDRED);
+      Serial.print("Tentando conectar ");
+      Serial.println(millis());
       if (client.connect("Magal", "coiktbwj", "zAhaklL2atGf")){
         // Conecta no topic para receber mensagens
         client.subscribe("portao");
         client.subscribe("lampada");
         client.subscribe("portaostatus");
         client.subscribe("lampadastatus");
-        
+
+        Serial.println("Conectado");
         mqttMachineState = CONNECTED;
       }
       else{
+        Serial.println("Falha");
         mqttMachineState = DISCONNECTED;
       }
       break;
@@ -344,25 +349,25 @@ void switchOffLight(){
 
 void setupGate(int pin){
   gate.attach(pin);
-  gate.write(90);
-  position = 90;
+  gate.write(0);
+  position = 0;
   sendPortaoStatus = "Fechado";
 }
-void openGate(){
-  position = 90-(70*(millis()-initialhourgate))/GATETIME;
-  if(position<=20){
-    position = 20;
-    gateStatus = OPENED;
-    sendPortaoStatus = "Aberto";
+void closeGate(){
+  position = 90-(90*(millis()-initialhourgate))/GATETIME;
+  if(position<=00){
+    position = 00;
+    gateStatus = CLOSED;
+    sendPortaoStatus = "Fechado";
   }
   gate.write(position);
 }
-void closeGate(){
-  position = 20+(70*(millis()-initialhourgate))/GATETIME;
+void openGate(){
+  position = (90*(millis()-initialhourgate))/GATETIME;
   if(position>=90){
     position = 90;
-    gateStatus = CLOSED;
-    sendPortaoStatus = "Fechado";
+    gateStatus = OPENED;
+    sendPortaoStatus = "Aberto";
   }
   gate.write(position);
 }
