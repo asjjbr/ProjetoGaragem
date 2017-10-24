@@ -1,3 +1,6 @@
+
+#define MQTT_SOCKET_TIMEOUT 5
+
 #include <SPI.h>
 #include <UIPEthernet.h>
 #include <utility/logging.h>
@@ -120,7 +123,7 @@ void setup() {
   
   Serial.begin(9600);
   //Serial.println("Iniciando...");
-  Ethernet.begin(mac);
+  Ethernet.begin(mac, 5000, 4000);
 
   digitalWrite(STATUSLEDBLUE, ON);
   if (client.connect("Magal", "coiktbwj", "zAhaklL2atGf"))
